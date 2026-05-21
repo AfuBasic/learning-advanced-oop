@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Database\Migrations;
 
-use PDO;
+use App\Database\Connection;
 use RuntimeException;
 
 class MigrationRunner
 {
     public function __construct(
-        protected PDO $pdo,
+        protected Connection $connection,
         protected string $migrationsPath
     ) {}
 
@@ -31,7 +31,6 @@ class MigrationRunner
          * 3. Query ledger for already executed scripts
          */
         $executedFiles = $this->getExecutedMigrations();
-
         /**
          * 4. Isolate outstanding migrations
          */
@@ -48,7 +47,7 @@ class MigrationRunner
         foreach ($pendingMigrations as $file) {
             $fullPath = $this->migrationsPath . "/" . $file;
 
-            $migration = require $fullpath;
+            $migration = require $fullPath;
             if (!$migration instanceof MigrationContract) {
                 throw new RuntimeException("Migration file [{$file}] must implement the MigrationContract");
             }
@@ -58,7 +57,7 @@ class MigrationRunner
             /**
              * Execute the schema modification DDL script
              */
-            $this->pdo->exec($sql);
+            $this->connection->rawExec($sql);
 
             $this->logInLedger($file);
             $logs[] = "Successfully Migrated: <span style='color: #0d9488;'>{$file}</span>";
@@ -80,7 +79,7 @@ class MigrationRunner
             executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB;";
 
-        $this->pdo->exec($sql);
+        $this->connection->rawExec($sql);
     }
 
     protected function getMigrationFiles(): array
@@ -98,8 +97,8 @@ class MigrationRunner
      */
     public function getExecutedMigrations(): array
     {
-        $statement = $this->pdo->query("SELECT migration_name from migrations");
-        return $statement->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $executedMigrations = $this->connection->select("SELECT migration_name from migrations ORDER BY id ASC");
+        return array_column($executedMigrations, 'migration_name');
     }
 
     /**
@@ -109,7 +108,6 @@ class MigrationRunner
      */
     public function logInLedger(string $name): void
     {
-        $statement = $this->pdo->prepare("INSERT INTO migrations (migration_name) VALUES (:name)");
-        $statement->execute(['name' => $name]);
+        $this->connection->execute("INSERT INTO migrations (migration_name) VALUES (:name)", ['name' => $name]);
     }
 }
