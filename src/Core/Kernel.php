@@ -6,13 +6,19 @@ namespace App\Core;
 
 use App\Database\Connection;
 use App\Database\Migrations\MigrationRunner;
+use App\ORM\Model;
 use Exception;
+
+class Users extends Model {}
 
 class Kernel
 {
     public function run(): void
     {
         try {
+
+            print_r(Users::where('email', 'admin@example.com')->get());
+            exit;
             $runner = new MigrationRunner(Connection::resolve(), __DIR__ . '/../../migrations/');
             $results = $runner->run();
             $this->renderDashboard($results);

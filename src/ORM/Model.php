@@ -6,12 +6,54 @@ namespace App\ORM;
 
 use App\Query\Builder;
 use BadMethodCallException;
+use ReflectionClass;
 
 abstract class Model
 {
+    protected string $table = '';
+    protected static array $tableCache = [];
     public function getTable(): string
     {
-        return 'users';
+        if (!empty($this->table)) {
+            return strtolower($this->table);
+        }
+
+        $className = static::class;
+        if (isset(static::$tableCache[$className])) {
+            return static::$tableCache[$className];
+        }
+
+        /**
+         * Use reflection class to get the shortname of the class 
+         * since the static returns the full class name including the namespace
+         * @var mixed
+         */
+        $reflect = new ReflectionClass($this);
+        $shortName = $reflect->getShortName();
+
+        /**
+         * use Regex to to convert to snake_case
+         * @var mixed
+         */
+        $snakeName = preg_replace('/(?<!^)[A-Z]/', '_$0', $shortName);
+        /**
+         * General pluralization
+         * @var mixed
+         */
+        $tableName = strtolower($snakeName);
+
+        if (preg_match('/([^aeiou])y$/', $tableName)) {
+            // Category -> categories, Company -> companies (ends in consonant + y)
+            $tableName = preg_replace('/y$/', 'ies', $tableName);
+        } elseif (preg_match('/(ch|sh|x|ss)$/', $tableName)) {
+            // Box -> boxes, Wish -> wishes, Match -> matches
+            $tableName .= 'es';
+        } elseif (!str_ends_with($tableName, 's')) {
+            // Standard fallback rule
+            $tableName .= 's';
+        }
+
+        return static::$tableCache[$className] = $tableName;
     }
 
     public function newQuery(): Builder
